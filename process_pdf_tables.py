@@ -5,13 +5,14 @@ This script processes PDF files from an input directory, performs OCR on each pa
 and extracts table data into CSV and Excel files.
 
 Usage:
-    python process_pdf_tables.py [--rotate ROTATE] [--crop CROP]
+    python process_pdf_tables.py [--rotate ROTATE] [--crop CROP] [--columns COLUMNS]
 
 Example:
-    python process_pdf_tables.py --rotate 0
+    python process_pdf_tables.py --rotate 0 --columns "Company,City,StreetNo,PostalCode,Name,Title,Email,Phone"
 """
 import argparse, io, os, re, sys
 from pathlib import Path
+from typing import List, Dict
 
 import fitz                       # PyMuPDF
 from PIL import Image
@@ -22,6 +23,18 @@ from tqdm import tqdm
 # Set Tesseract path
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
+# Default columns
+DEFAULT_COLUMNS = [
+    "Company",
+    "City",
+    "StreetNo",
+    "PostalCode",
+    "Name",
+    "Title",
+    "Email",
+    "Phone"
+]
+
 # --------------------------- Parser & CLI --------------------------- #
 def get_args() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -30,6 +43,8 @@ def get_args() -> argparse.Namespace:
                     help="Rotation angle in degrees")
     ap.add_argument("--crop", type=float, default=0.05,
                     help="Right margin crop ratio (0-1)")
+    ap.add_argument("--columns", type=str, default=",".join(DEFAULT_COLUMNS),
+                    help="Comma-separated list of column names to extract")
     return ap.parse_args()
 
 
@@ -58,13 +73,14 @@ def rotate_page(page, rotate_deg: int, dpi: int = 200) -> Image.Image:
     return Image.open(io.BytesIO(pix.tobytes()))
 
 
-def parse_lines(text: str, page_idx: int) -> list[dict]:
+def parse_lines(text: str, page_idx: int, columns: List[str]) -> list[dict]:
     """
     Parse OCR text into structured data.
     
     Args:
         text: OCR text from a page
         page_idx: Page number (0-based)
+        columns: List of column names to extract
         
     Returns:
         List of dictionaries containing parsed data
@@ -84,35 +100,35 @@ def parse_lines(text: str, page_idx: int) -> list[dict]:
         if postal_idx is None or postal_idx < 3:
             continue
 
-        company   = " ".join(tokens[: postal_idx - 2])
-        city      = tokens[postal_idx - 2]
-        street_no = tokens[postal_idx - 1]
-        postal    = tokens[postal_idx]
+        # Create base row with page number
+        row = {"Page": page_idx + 1}
+
+        # Map tokens to columns based on their position
+        if "Company" in columns:
+            row["Company"] = " ".join(tokens[: postal_idx - 2])
+        if "City" in columns:
+            row["City"] = tokens[postal_idx - 2]
+        if "StreetNo" in columns:
+            row["StreetNo"] = tokens[postal_idx - 1]
+        if "PostalCode" in columns:
+            row["PostalCode"] = tokens[postal_idx]
 
         after = tokens[postal_idx + 1 : email_idx]
         if len(after) < 2:
             continue
 
-        name  = " ".join(after[:2])
-        title = " ".join(after[2:]) if len(after) > 2 else ""
+        if "Name" in columns:
+            row["Name"] = " ".join(after[:2])
+        if "Title" in columns:
+            row["Title"] = " ".join(after[2:]) if len(after) > 2 else ""
 
-        email = tokens[email_idx]
-        phone_match = PHONE_RE.search(" ".join(tokens[email_idx + 1 :]))
-        phone = phone_match.group(0) if phone_match else ""
+        if "Email" in columns:
+            row["Email"] = tokens[email_idx]
+        if "Phone" in columns:
+            phone_match = PHONE_RE.search(" ".join(tokens[email_idx + 1 :]))
+            row["Phone"] = phone_match.group(0) if phone_match else ""
 
-        rows.append(
-            dict(
-                Page=page_idx + 1,
-                Company=company,
-                City=city,
-                StreetNo=street_no,
-                PostalCode=postal,
-                Name=name,
-                Title=title,
-                Email=email,
-                Phone=phone,
-            )
-        )
+        rows.append(row)
     return rows
 
 
@@ -128,6 +144,9 @@ def process_pdf(pdf_path: Path, args: argparse.Namespace) -> None:
     output_dir = Path("output")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Parse columns from command line
+    columns = [col.strip() for col in args.columns.split(",")]
+    
     pdf = fitz.open(pdf_path)
     all_rows: list[dict] = []
 
@@ -138,7 +157,7 @@ def process_pdf(pdf_path: Path, args: argparse.Namespace) -> None:
         img = img.crop((0, 0, int(w * (1 - args.crop)), h))
 
         ocr_text = pytesseract.image_to_string(img, lang="deu+eng", config="--psm 6")
-        all_rows.extend(parse_lines(ocr_text, page_idx))
+        all_rows.extend(parse_lines(ocr_text, page_idx, columns))
 
     pdf.close()
 

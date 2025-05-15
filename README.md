@@ -7,6 +7,7 @@ A Python tool that automatically extracts tables from PDF files using OCR (Optic
 - Batch processing of multiple PDF files
 - Automatic OCR using Tesseract
 - Supports PDF rotation and cropping
+- Customizable column selection
 - Outputs both CSV and Excel files
 - Progress bar for tracking processing status
 - Handles German and English text
@@ -49,13 +50,45 @@ pip install -r requirements.txt
 1. Create an `input` directory and place your PDF files there
 2. Run the script:
 ```bash
-python process_pdf_tables.py [--rotate ROTATE] [--crop CROP]
+python process_pdf_tables.py [--rotate ROTATE] [--crop CROP] [--columns COLUMNS]
 ```
 
 ### Parameters
 
 - `--rotate`: Rotation angle in degrees (0, 90, 180, 270). Default: 0
 - `--crop`: Right margin crop ratio (0-1). Default: 0.05
+- `--columns`: Comma-separated list of columns to extract. Default: "Company,City,StreetNo,PostalCode,Name,Title,Email,Phone"
+
+### Available Columns
+
+The following columns are available by default:
+- `Company`: Company name
+- `City`: City name
+- `StreetNo`: Street and number
+- `PostalCode`: Postal code
+- `Name`: Person's name
+- `Title`: Person's title
+- `Email`: Email address
+- `Phone`: Phone number
+
+You can specify any subset of these columns or add your own custom columns.
+
+### Examples
+
+Extract all default columns:
+```bash
+python process_pdf_tables.py
+```
+
+Extract only company and email:
+```bash
+python process_pdf_tables.py --columns "Company,Email"
+```
+
+Extract default columns with custom rotation:
+```bash
+python process_pdf_tables.py --rotate 90
+```
 
 ### Output
 
