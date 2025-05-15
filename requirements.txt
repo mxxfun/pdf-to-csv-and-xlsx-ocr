@@ -1,0 +1,13 @@
+# PDF processing
+pymupdf==1.25.5  # PDF manipulation and rendering
+pillow==11.2.1   # Image processing
+
+# OCR
+pytesseract==0.3.13  # Tesseract OCR wrapper
+
+# Data processing
+pandas==2.2.3    # Data manipulation and analysis
+openpyxl==3.1.5  # Excel file support
+
+# Utilities
+tqdm==4.67.1     # Progress bar
